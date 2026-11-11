@@ -1,6 +1,6 @@
 # LangGraph Chatbot
 
-A chat application built with LangGraph, LangChain, and Streamlit. It connects to a model through an OpenAI-compatible API; configure the API URL and model name using environment variables.
+A chat application built with LangGraph, LangChain, and Streamlit. It connects to a model through an OpenAI-compatible API; configure the API URL, model name, and API key using environment variables.
 
 ## Requirements
 
@@ -30,9 +30,10 @@ Create a `.env` file in the project root:
 ```env
 BASE_URL=http://localhost:8000/v1
 MODEL=your-model-name
+API_KEY=your-api-key
 ```
 
-Replace the URL with your model service's endpoint and `your-model-name` with a model it supports. Start the model service before launching the application.
+Replace the example values with the endpoint, model name, and API key provided by your model service. If the service does not require authentication, use a placeholder value if its OpenAI-compatible endpoint accepts one. Keep real credentials private: do not commit your `.env` file or paste API keys into source code. Start the model service before launching the application.
 
 ## Run the application
 
