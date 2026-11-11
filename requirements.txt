@@ -3,3 +3,4 @@ langchain-openai
 langgraph
 python-dotenv
 streamlit
+langchain-google-genai
