@@ -28,7 +28,7 @@ If PowerShell's execution policy prevents activation, install using the virtual 
 Create a `.env` file in the project root:
 
 ```env
-BASE_URL=http://localhost:8000/v1
+BASE_URL=......
 MODEL=your-model-name
 API_KEY=your-api-key
 ```
