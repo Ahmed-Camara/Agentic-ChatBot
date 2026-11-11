@@ -12,13 +12,15 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 load_dotenv()
 BASE_URL = os.getenv("BASE_URL")
-MODEL = os.getenv("GEM_MODEL")
-API_KEY = os.getenv("GEM_API_KEY")
+MODEL = os.getenv("MODEL")
+GEM_MODEL = os.getenv("GEM_MODEL")
+API_KEY = os.getenv("API_KEY")
+GEM_API_KEY = os.getenv("GEM_API_KEY")
 config = {"configurable": {"thread_id": "chat-session-1"}}
 
-"""model = ChatOpenAI(model=MODEL,
-                   base_url=BASE_URL,temperature=0.7,verbose=True,api_key=API_KEY)"""
-model = ChatGoogleGenerativeAI(model=MODEL, google_api_key=API_KEY)
+model = ChatOpenAI(model=MODEL,
+                   base_url=BASE_URL,temperature=0.7,verbose=True,api_key=API_KEY)
+model2 = ChatGoogleGenerativeAI(model=GEM_MODEL, google_api_key=GEM_API_KEY)
 class ChatState(BaseModel):
     messages: Annotated[List[BaseMessage], add_messages]
     
