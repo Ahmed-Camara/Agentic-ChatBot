@@ -48,6 +48,7 @@ Open the local URL printed by Streamlit in your browser.
 - `app.py` provides the Streamlit chat interface and streams model responses.
 - `agentic_chatbot.py` configures the model, defines the message state, and builds the LangGraph graph.
 - `MemorySaver` stores checkpoints in memory while the process is running. Checkpoints are not persisted after the process stops.
+
 ## Dependencies
 
 Python dependencies are listed in [`requirements.txt`](./requirements.txt).
