@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 load_dotenv()
+
 BASE_URL = os.getenv("BASE_URL")
 MODEL = os.getenv("MODEL")
 GEM_MODEL = os.getenv("GEM_MODEL")
