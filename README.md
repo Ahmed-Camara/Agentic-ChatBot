@@ -48,9 +48,6 @@ Open the local URL printed by Streamlit in your browser.
 - `app.py` provides the Streamlit chat interface and streams model responses.
 - `agentic_chatbot.py` configures the model, defines the message state, and builds the LangGraph graph.
 - `MemorySaver` stores checkpoints in memory while the process is running. Checkpoints are not persisted after the process stops.
-
-The `thread_id` is currently set to `chat-session-1` in `agentic_chatbot.py`. For separate conversations, use a distinct thread ID for each session.
-
 ## Dependencies
 
 Python dependencies are listed in [`requirements.txt`](./requirements.txt).
