@@ -21,7 +21,7 @@ tavily = TavilyClient(api_key = TAVILY_API_KEY)
 @tool
 def web_search(query : str) -> str:
     """Search over the internet for recent and reliable information on a topic. Returns Titles, URLs, and Contents"""
-    results = tavily.search(query=query,max_results=5,search_depth="advanced",topic="general")
+    results = tavily.search(query=query,max_results=1,search_depth="advanced",topic="general")
     print(f"Search results for query : {query}")
     
     response = []
