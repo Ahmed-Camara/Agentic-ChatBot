@@ -8,3 +8,5 @@ langgraph-checkpoint-sqlite==3.1.0
 langchain-tavily
 requests
 tavily-python
+langchain-community
+langchain-text-splitters

@@ -27,6 +27,7 @@ def web_search(query : str) -> str:
     response = []
     
     for r in results["results"]:
+        print(r)
         response.append(
             f"Title: {r['title']}\nURL:{r['url']}\nSnippet: {r['content'][:300]}\n"
         )
