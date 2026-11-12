@@ -1,5 +1,5 @@
-from agentic_chatbot import chatbot
-from langchain_core.messages import HumanMessage,AIMessage
+from agentic_chatbot import chatbot,get_all_threads
+from langchain_core.messages import HumanMessage,AIMessage,ToolMessage,AIMessageChunk
 import streamlit as st
 import uuid
 
@@ -21,7 +21,7 @@ if 'message_history' not in st.session_state:
     st.session_state['message_history'] = []
 
 if 'chat_threads' not in st.session_state:
-    st.session_state['chat_threads'] = []
+    st.session_state['chat_threads'] = get_all_threads()
         
 if 'thread_id' not in st.session_state:
     st.session_state['thread_id'] = generate_thread_id()
@@ -75,18 +75,80 @@ for message in st.session_state['message_history']:
 user_input = st.chat_input("Type your message here...")
 
 if user_input:
-    st.session_state['message_history'].append({"role": "user", "content": user_input})
+    st.session_state["message_history"].append({
+        "role": "user",
+        "content": user_input
+    })
+
     with st.chat_message("user"):
         st.text(user_input)
-    
-    config = {"configurable": {"thread_id": st.session_state['thread_id']}}
-    
+
+    config = {
+        "configurable": {
+            "thread_id": st.session_state["thread_id"]
+        },
+        "run_name": "chat_trace"
+    }
+
     with st.chat_message("assistant"):
-        ai_message = st.write_stream(
-            message_chunk.content for message_chunk, metadata in chatbot.stream(
-                {"messages":[HumanMessage(content=user_input)]}, config=config,
-                stream_mode = "messages"
-            )
-            if isinstance(message_chunk, AIMessage)
-        )
+
+        status_holder = {"box": None}
+
+        def ai_only_stream():
+
+            for message_chunk, metadata in chatbot.stream(
+                {
+                    "messages": [
+                        HumanMessage(content=user_input)
+                    ]
+                },
+                config=config,
+                stream_mode="messages"
+            ):
+
+                # 1. Suivre l'exécution des tools
+                if isinstance(message_chunk, ToolMessage):
+
+                    tool_name = getattr(
+                        message_chunk, "name", "tool"
+                    )
+
+                    if status_holder["box"] is None:
+                        status_holder["box"] = st.status(
+                            f"Using {tool_name}...",
+                            expanded=True
+                        )
+                    else:
+                        status_holder["box"].update(
+                            label=f"Using {tool_name}...",
+                            state="running",
+                            expanded=True
+                        )
+
+                # 2. Ignorer les messages intermédiaires
+                # contenant des appels de tools
+                if isinstance(message_chunk, AIMessageChunk):
+
+                    if message_chunk.tool_call_chunks:
+                        continue
+
+                    if message_chunk.tool_calls:
+                        continue
+
+                    # Afficher uniquement le contenu textuel
+                    content = message_chunk.content
+
+                    if content:
+                        yield content
+
+            # 3. Terminer le statut après l'exécution
+            if status_holder["box"] is not None:
+                status_holder["box"].update(
+                    label="Task completed",
+                    state="complete",
+                    expanded=False
+                )
+
+        ai_message = st.write_stream(ai_only_stream())
+       
     st.session_state['message_history'].append({"role": "assistant", "content": ai_message})
