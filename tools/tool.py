@@ -8,6 +8,7 @@ import os
 from typing import Any
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+from rag.retriever import get_retriever
 load_dotenv()
 
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
@@ -220,3 +221,37 @@ def get_datetime_information(
 
     except Exception as error:
         return f"Could not retrieve date and time information: {error}"
+    
+ 
+@tool
+def rag_tool(query: str) -> str:
+    """
+        Retrieve relevant information from the PDF document.
+        
+        Use this tool when the user asks factual or conceptual questions that may be
+        answered using the stored PDF documents.
+        
+        Args:
+            query: The question or search query used to retrieve PDF content.
+    """
+    retriever = get_retriever()
+    documents = retriever.invoke(query)
+    
+    if not documents:
+        return "No relevant information was found in the PDF."
+    
+    formatted_documents = []
+    
+    for index, document in enumerate(documents,start=1):
+        source = document.metadata.get("source","unknown source")
+        page = document.metadata.get("page","unknown page")
+        
+        formatted_documents.append(
+            f"Document {index}\n"
+            f"Source {source}\n"
+            f"Page {page}\n"
+            f"Content {document.page_content}\n"
+        )
+    
+    return "\n\n".join(formatted_documents)
+    
