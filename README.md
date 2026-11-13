@@ -1,70 +1,103 @@
 # Agentic Chatbot
 
-This repository is a small LangGraph + Streamlit chatbot project built around a main chatbot graph and a thread-based chat interface.
+An agentic chatbot built with **LangGraph** and **Streamlit**. It can call tools (web search, calculator, stock prices, weather, date/time), answer questions about PDFs you upload (RAG with FAISS), and stop to ask for your approval before sensitive actions (human-in-the-loop). Conversations are saved in SQLite, so you can switch between threads and pick one up later.
 
-## Actual project structure
+## Features
 
-From the current workspace, the files present are:
+- **Tool calling**: the LLM decides which tool to call through LangGraph's `ToolNode` and `tools_condition`.
+- **RAG on PDFs**: you upload PDFs from the chat. They are split into chunks, embedded and stored in a FAISS index. The model then searches them with `rag_tool`.
+- **Human-in-the-loop (HITL)**: the `purchase_stock` tool pauses the graph with `interrupt()` and waits for you to approve or reject in the UI.
+- **Persistent conversations**: `SqliteSaver` stores checkpoints for each `thread_id`. You can reopen any past conversation from the sidebar.
+- **Streaming UI**: answers stream token by token, and a status box shows which tool is running.
 
-- `agentic_chatbot.py` — main chatbot implementation
-- `app.py` — simple single-thread chat UI
-- `app_thread.py` — threaded chat UI with conversation history
-- `requirements.txt` — Python dependencies
-- `LICENSE` — project license
-- `README.md` — project documentation
-- `tools/tool.py` — placeholder tool module
-- `db/chatbot.db` — SQLite database used by the chatbot checkpointing layer
+## Project structure
 
-## What the current code does
+```text
+ChatBot/
+├── agentic_chatbot.py     # LangGraph graph: state, chat_node, tools, checkpointer
+├── app_thread.py          # Main Streamlit UI (threads, uploads, HITL approval)
+├── app.py                 # Minimal single-thread Streamlit UI
+├── tools/
+│   └── tool.py            # All LangChain tools (incl. rag_tool and purchase_stock)
+├── rag/
+│   ├── embedding.py       # OpenAI-compatible embeddings
+│   ├── vector_store.py    # PDF ingestion → FAISS index
+│   └── retriever.py       # Loads FAISS index and returns a retriever (k=4)
+├── graph/, llm/           # Modules for a future refactor (not used by the app yet)
+├── data/uploads/          # PDFs uploaded through the UI
+├── docs/                  # Sample PDFs
+├── db/
+│   ├── thread/chatbot.db  # SQLite checkpoints (conversations)
+│   └── rag_db/faiss_db/   # FAISS vector index
+└── requirements.txt
+```
 
-The active chatbot implementation in `agentic_chatbot.py` includes:
+## Tools
 
-- LangGraph state graph with `StateGraph`
-- `add_messages`-based message state management
-- OpenAI-compatible model integration with `ChatOpenAI`
-- Optional Gemini integration via `ChatGoogleGenerativeAI`
-- `ToolNode` and `tools_condition` usage for tool-calling flows
-- SQLite checkpoint persistence via `SqliteSaver`
-- thread-aware chat support with `checkpoint.list(None)` and thread IDs
+| Tool | Description | External service |
+| --- | --- | --- |
+| `web_search` | Searches the internet and returns title, URL and snippet | Tavily |
+| `calculator` | Evaluates math expressions (with `math`, `abs`, `round`, `min`, `max`, `sum`) | — |
+| `get_stock_price` | Latest quote for a stock symbol (e.g. `AAPL`) | Alpha Vantage |
+| `get_current_weather` | Current weather for a city | OpenWeather |
+| `get_datetime_information` | Current date/time, tomorrow, yesterday (default timezone `Africa/Abidjan`) | — |
+| `rag_tool` | Returns relevant passages from the uploaded PDFs, with source and page | FAISS + embeddings |
+| `purchase_stock` | **Simulated** stock purchase that requires human approval | — (simulation) |
 
-The app files are:
+## How it works
 
-- `app.py`: minimal chat interface for direct conversations
-- `app_thread.py`: conversation sidebar and thread switching based on stored checkpoints
+### Graph
 
-## Tooling state
+```text
+START → chat_node ──(tool calls?)──► tools ──► chat_node
+                 └──(no tool calls)──► END
+```
 
-`agentic_chatbot.py` imports tool functions such as:
+- `chat_node` adds a system prompt with tool-usage rules and calls the LLM, which is bound to the tools.
+- `tools_condition` sends the flow to `tools` when the LLM requests a tool, and to `END` otherwise.
+- Tool results go back to `chat_node`, which writes the final answer.
+- The graph is compiled with a `SqliteSaver` checkpointer stored in `db/thread/chatbot.db`.
 
-- `web_search`
-- `calculator`
-- `get_stock_price`
-- `get_current_weather`
-- `get_datetime_information`
+### Human-in-the-loop
 
-These are expected to come from `tools/tool.py`, but that file currently only contains a minimal placeholder and does not yet implement the full tool set referenced by the chatbot. In other words, the project is in a semi-developed state: the graph and UI are present, but the tool layer is still incomplete.
+The HITL logic lives inside the `purchase_stock` tool:
+
+1. The tool calls `interrupt("Approve buying {quantity} shares of {symbol} ? (yes/no)")`, and the graph pauses in the `tools` node.
+2. `app_thread.py` reads the pending interrupts from `chatbot.get_state(config).interrupts`. It shows an **Approval required** panel with **Approve** / **Reject** buttons, and hides the chat input until you decide.
+3. The graph resumes with `Command(resume="yes")` or `Command(resume="no")`.
+4. If you answered `"yes"`, the tool returns `status: success`. Otherwise it returns `status: cancelled`. The LLM then writes its answer from that result.
+
+Because the pause is stored in the checkpointer, a pending approval is still there after a page refresh or when you switch back to that thread.
+
+### RAG
+
+1. When you upload a PDF in the chat, it is saved to `data/uploads/` with a unique prefix.
+2. `ingest_rag_document()` loads it with `PyPDFLoader`, splits it with `RecursiveCharacterTextSplitter`, embeds the chunks and saves a FAISS index to `db/rag_db/faiss_db`.
+3. `rag_tool` loads that index and returns the top 4 chunks for the query.
 
 ## Environment variables
 
 Create a `.env` file at the project root:
 
 ```env
+# Chat model (OpenAI-compatible endpoint)
 BASE_URL=https://your-openai-compatible-endpoint
 MODEL=your-model-name
 API_KEY=your-api-key
-GEM_MODEL=gemini-model-name
-GEM_API_KEY=your-gemini-api-key
+
+# Embeddings (RAG)
+EMBEDDING_BASE_URL=https://your-embedding-endpoint
+EMBEDDING_MODEL=your-embedding-model
+
+# Tools
+TAVILY_API_KEY=your-tavily-key
+ALPHA_VANTAGE=your-alpha-vantage-key
+OPEN_WEATHER_API_KEY=your-openweather-key
 ```
 
-Notes:
-
-- If you only use the OpenAI-compatible endpoint, the Gemini variables can be left unset.
-- Do not commit `.env` to version control.
-- Keep API keys private.
+`.env` and `db/` are listed in `.gitignore`. Never commit API keys.
 
 ## Installation
-
-From the project directory:
 
 ```powershell
 python -m venv venv
@@ -72,46 +105,49 @@ python -m venv venv
 python -m pip install -r requirements.txt
 ```
 
-If activation is blocked, use the venv interpreter directly:
+If activation is blocked, call the venv interpreter directly:
 
 ```powershell
 .\venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-## Run the app
-
-### Simple version
+Since `db/` is not versioned, create the database folders before the first run:
 
 ```powershell
-streamlit run app.py
+New-Item -ItemType Directory -Force db\thread, db\rag_db
 ```
 
-### Threaded version
+## Run
+
+Main app (threads, PDF upload, HITL):
 
 ```powershell
 streamlit run app_thread.py
 ```
 
-Then open the local Streamlit URL in the browser.
+Minimal app (single thread, no upload, no HITL panel):
 
-## How it works
+```powershell
+streamlit run app.py
+```
 
-- `agentic_chatbot.py` defines the message state and builds the LangGraph workflow.
-- The graph adds a `chat_node` and a `tools` node.
-- The model is bound to tools with `model.bind_tools(tools)`.
-- `tools_condition` decides whether to continue into the tool node.
-- Results are sent back to the model for follow-up reasoning.
-- `SqliteSaver` stores checkpoints in `db/chatbot.db`.
-- `app_thread.py` retrieves saved threads and lets the user switch between conversations.
+## Try the HITL flow
 
-## Current project status
+1. Run `app_thread.py`.
+2. Ask: *"Buy 10 shares of AAPL"*.
+3. The **Approval required** panel appears. Click **Approve** or **Reject**.
+4. The agent resumes and confirms or cancels the (simulated) order.
 
-This project is a working prototype/learning project. It demonstrates:
+## Known limitations
 
-- LangGraph graph setup
-- message streaming and checkpoints
-- thread management with SQLite
-- tool-calling architecture in LangGraph
-- Streamlit UI integration
+- `purchase_stock` is a simulation. No real order is placed.
+- HITL only covers `purchase_stock`. The other tools run without approval.
+- Each new upload **replaces** the FAISS index, so only the most recently uploaded PDFs can be searched.
+- The upload field accepts `docx`, `txt` and `csv`, but ingestion uses `PyPDFLoader`, so only PDFs are supported.
+- `rag_tool` fails if no document has been uploaded yet, because the FAISS index does not exist.
+- `app.py` does not handle interrupts. Use `app_thread.py` for the HITL flow.
+- The `graph/` and `llm/` modules are placeholders for a future refactor.
 
-It is not yet a fully finished production-ready agent application, and the tool implementations still need to be completed for the tool-calling flow to be fully operational.
+## License
+
+See [LICENSE](LICENSE).
